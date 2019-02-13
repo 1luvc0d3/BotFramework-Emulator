@@ -35,43 +35,45 @@ import { GenericActivity, ILogItem } from '@bfemulator/sdk-shared';
 
 import { BotEmulator } from './botEmulator';
 import ConsoleLogService from './facility/consoleLogService';
+import registerAttachmentRoutes from './attachments/registerRoutes';
+import registerBotStateRoutes from './botState/registerRoutes';
+import registerConversationRoutes from './conversations/registerRoutes';
+import registerDirectLineRoutes from './directLine/registerRoutes';
+import registerEmulatorRoutes from './emulator/registerRoutes';
+import registerSessionRoutes from './session/registerRoutes';
+import registerUserTokenRoutes from './userToken/registerRoutes';
+import stripEmptyBearerToken from './utils/stripEmptyBearerToken';
 
-const mockRegisterAttachmentRoutes = jest.fn((..._args) => null);
-jest.mock('./attachments/registerRoutes', () => ({ default: mockRegisterAttachmentRoutes }));
-
-const mockRegisterBotStateRoutes = jest.fn((..._args) => null);
-jest.mock('./botState/registerRoutes', () => ({ default: mockRegisterBotStateRoutes }));
-
-const mockRegisterConversationRoutes = jest.fn((..._args) => null);
-jest.mock('./conversations/registerRoutes', () => ({ default: mockRegisterConversationRoutes }));
-
-const mockRegisterDirectLineRoutes = jest.fn((..._args) => null);
-jest.mock('./directLine/registerRoutes', () => ({ default: mockRegisterDirectLineRoutes }));
-
-const mockRegisterEmulatorRoutes = jest.fn((..._args) => null);
-jest.mock('./emulator/registerRoutes', () => ({ default: mockRegisterEmulatorRoutes }));
-
-const mockRegisterSessionRoutes = jest.fn((..._args) => null);
-jest.mock('./session/registerRoutes', () => ({ default: mockRegisterSessionRoutes }));
-
-const mockRegisterUserTokenRoutes = jest.fn((..._args) => null);
-jest.mock('./userToken/registerRoutes', () => ({ default: mockRegisterUserTokenRoutes }));
+jest.mock('./attachments/registerRoutes', () => jest.fn(() => null));
+jest.mock('./botState/registerRoutes', () => jest.fn(() => null));
+jest.mock('./conversations/registerRoutes', () => jest.fn(() => null));
+jest.mock('./directLine/registerRoutes', () => jest.fn(() => null));
+jest.mock('./emulator/registerRoutes', () => jest.fn(() => null));
+jest.mock('./session/registerRoutes', () => jest.fn(() => null));
+jest.mock('./userToken/registerRoutes', () => jest.fn(() => null));
+jest.mock('./utils/stripEmptyBearerToken', () => jest.fn(() => null));
 
 const mockAcceptParser = jest.fn(_acceptable => null);
 const mockDateParser = jest.fn(() => null);
 const mockQueryParser = jest.fn(() => null);
 jest.mock('restify', () => ({
   plugins: {
-    acceptParser: mockAcceptParser,
-    dateParser: mockDateParser,
-    queryParser: mockQueryParser,
+    get acceptParser() {
+      return mockAcceptParser;
+    },
+    get dateParser() {
+      return mockDateParser;
+    },
+    get queryParser() {
+      return mockQueryParser;
+    },
   },
 }));
 
 describe('BotEmulator', () => {
   it('should instantiate itself properly', async () => {
-    const getServiceUrl = url => Promise.resolve('serviceUrl');
-    const customFetch = (url, options) => Promise.resolve();
+    const getServiceUrl = _url => Promise.resolve('serviceUrl');
+    const customFetch = (_url, _options) => Promise.resolve();
     const customLogger = {
       logActivity: (_conversationId: string, _activity: GenericActivity, _role: string) => 'activityLogged',
       logMessage: (_conversationId: string, ..._items: ILogItem[]) => 'messageLogged',
@@ -110,5 +112,34 @@ describe('BotEmulator', () => {
     expect((botEmulator2.facilities.logger as any).logService).toEqual(customLogService);
   });
 
-  it('should mount routes onto a restify server', () => {});
+  it('should mount routes onto a restify server', () => {
+    const getServiceUrl = _url => Promise.resolve('serviceUrl');
+    const botEmulator = new BotEmulator(getServiceUrl);
+    const restifyServer = { acceptable: true };
+    const mockUses = [
+      mockAcceptParser(restifyServer.acceptable),
+      stripEmptyBearerToken(),
+      mockDateParser(),
+      mockQueryParser(),
+    ];
+    mockAcceptParser.mockClear();
+    (stripEmptyBearerToken as any).mockClear();
+    mockDateParser.mockClear();
+    mockQueryParser.mockClear();
+
+    const mountedEmulator = botEmulator.mount(restifyServer as any);
+
+    expect(mountedEmulator).toEqual(botEmulator);
+    expect(mockAcceptParser).toHaveBeenCalledWith(restifyServer.acceptable);
+    expect(stripEmptyBearerToken).toHaveBeenCalled();
+    expect(mockDateParser).toHaveBeenCalled();
+    expect(mockQueryParser).toHaveBeenCalled();
+    expect(registerAttachmentRoutes).toHaveBeenCalledWith(botEmulator, restifyServer, mockUses);
+    expect(registerBotStateRoutes).toHaveBeenCalledWith(botEmulator, restifyServer, mockUses);
+    expect(registerConversationRoutes).toHaveBeenCalledWith(botEmulator, restifyServer, mockUses);
+    expect(registerDirectLineRoutes).toHaveBeenCalledWith(botEmulator, restifyServer, mockUses);
+    expect(registerSessionRoutes).toHaveBeenCalledWith(botEmulator, restifyServer, mockUses);
+    expect(registerUserTokenRoutes).toHaveBeenCalledWith(botEmulator, restifyServer, mockUses);
+    expect(registerEmulatorRoutes).toHaveBeenCalledWith(botEmulator, restifyServer, mockUses);
+  });
 });
